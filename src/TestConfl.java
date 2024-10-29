@@ -5,6 +5,6 @@ public class TestConfl {
     }
 
     public void testB(){
-        // TODO Impl
+        System.out.println("Dev B");
     }
 }
