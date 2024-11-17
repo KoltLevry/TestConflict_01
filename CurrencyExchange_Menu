@@ -1,0 +1,246 @@
+import model.User;
+import service.*;
+
+import java.util.Scanner;
+
+public class Menu {
+    private final UserService userService;
+    private final AccountService accountService;
+    private final CurrencyService currencyService;
+    private final ExchangeRateService exchangeRateService;
+    private final TransactionService transactionService;
+    private final Scanner scanner = new Scanner(System.in);
+    private User activeUser = null;
+
+    public Menu(UserService userService, AccountService accountService, 
+                CurrencyService currencyService, ExchangeRateService exchangeRateService, 
+                TransactionService transactionService) {
+        this.userService = userService;
+        this.accountService = accountService;
+        this.currencyService = currencyService;
+        this.exchangeRateService = exchangeRateService;
+        this.transactionService = transactionService;
+    }
+
+    public void run() {
+        while (true) {
+            if (activeUser == null) {
+                showLoginMenu();
+            } else {
+                showMainMenu();
+            }
+        }
+    }
+
+    private void showLoginMenu() {
+        System.out.println("\n--- Вхід у систему ---");
+        System.out.println("1. Увійти");
+        System.out.println("2. Зареєструватися");
+        System.out.println("0. Вийти");
+
+        int choice = getInputInt(2);
+
+        switch (choice) {
+            case 1 -> loginUser();
+            case 2 -> registerUser();
+            case 0 -> exitApplication();
+        }
+    }
+
+    private void loginUser() {
+        System.out.print("Введіть email: ");
+        String email = scanner.nextLine();
+        System.out.print("Введіть пароль: ");
+        String password = scanner.nextLine();
+
+        try {
+            activeUser = userService.loginUser(email, password);
+            System.out.println("Вхід успішний. Вітаємо, " + activeUser.getName() + "!");
+        } catch (IllegalArgumentException e) {
+            System.out.println("Помилка: " + e.getMessage());
+        }
+    }
+
+    private void registerUser() {
+        System.out.print("Введіть ім'я: ");
+        String name = scanner.nextLine();
+        System.out.print("Введіть email: ");
+        String email = scanner.nextLine();
+        System.out.print("Введіть пароль: ");
+        String password = scanner.nextLine();
+
+        try {
+            userService.registerUser(name, email, password);
+            System.out.println("Реєстрація успішна!");
+        } catch (IllegalArgumentException e) {
+            System.out.println("Помилка: " + e.getMessage());
+        }
+    }
+
+    private void showMainMenu() {
+        System.out.println("\n--- Головне меню ---");
+        System.out.println("1. Мій рахунок");
+        System.out.println("2. Валюти та курси обміну");
+        System.out.println("3. Транзакції");
+        if (activeUser.getRole().equalsIgnoreCase("admin")) {
+            System.out.println("4. Адміністративне меню");
+        }
+        System.out.println("0. Вийти з облікового запису");
+
+        int choice = activeUser.getRole().equalsIgnoreCase("admin") ? getInputInt(4) : getInputInt(3);
+
+        switch (choice) {
+            case 1 -> manageAccount();
+            case 2 -> manageCurrenciesAndRates();
+            case 3 -> manageTransactions();
+            case 4 -> {
+                if (activeUser.getRole().equalsIgnoreCase("admin")) {
+                    showAdminMenu();
+                }
+            }
+            case 0 -> logout();
+        }
+    }
+
+    private void manageAccount() {
+        System.out.println("\n--- Управління рахунком ---");
+        System.out.println("1. Переглянути баланс");
+        System.out.println("2. Додати кошти");
+        System.out.println("0. Назад");
+
+        int choice = getInputInt(2);
+
+        switch (choice) {
+            case 1 -> {
+                double balance = accountService.getBalance(activeUser.getId());
+                System.out.println("Ваш баланс: " + balance);
+            }
+            case 2 -> {
+                System.out.print("Введіть суму для поповнення: ");
+                double amount = scanner.nextDouble();
+                accountService.addFunds(activeUser.getId(), amount);
+                System.out.println("Рахунок успішно поповнено!");
+            }
+        }
+    }
+
+    private void manageCurrenciesAndRates() {
+        System.out.println("\n--- Валюти та курси обміну ---");
+        System.out.println("1. Переглянути доступні валюти");
+        System.out.println("2. Переглянути курси обміну");
+        System.out.println("3. Конвертувати валюту");
+        System.out.println("0. Назад");
+
+        int choice = getInputInt(3);
+
+        switch (choice) {
+            case 1 -> currencyService.getAllCurrencies().forEach(System.out::println);
+            case 2 -> exchangeRateService.getAllExchangeRates().forEach(System.out::println);
+            case 3 -> convertCurrency();
+        }
+    }
+
+    private void manageTransactions() {
+        System.out.println("\n--- Транзакції ---");
+        System.out.println("1. Переглянути історію транзакцій");
+        System.out.println("2. Виконати нову транзакцію");
+        System.out.println("0. Назад");
+
+        int choice = getInputInt(2);
+
+        switch (choice) {
+            case 1 -> transactionService.getTransactionHistory(activeUser.getId())
+                    .forEach(System.out::println);
+            case 2 -> performTransaction();
+        }
+    }
+
+    private void performTransaction() {
+        System.out.print("Введіть рахунок отримувача: ");
+        long recipientId = scanner.nextLong();
+        System.out.print("Введіть суму для переказу: ");
+        double amount = scanner.nextDouble();
+
+        try {
+            transactionService.createTransaction(activeUser.getId(), recipientId, amount);
+            System.out.println("Транзакція успішно виконана!");
+        } catch (IllegalArgumentException e) {
+            System.out.println("Помилка: " + e.getMessage());
+        }
+    }
+
+    private void showAdminMenu() {
+        System.out.println("\n--- Адміністративне меню ---");
+        System.out.println("1. Додати валюту");
+        System.out.println("2. Додати/оновити курс обміну");
+        System.out.println("0. Назад");
+
+        int choice = getInputInt(2);
+
+        switch (choice) {
+            case 1 -> {
+                System.out.print("Введіть код валюти (наприклад, USD): ");
+                String code = scanner.nextLine();
+                System.out.print("Введіть назву валюти: ");
+                String name = scanner.nextLine();
+                currencyService.addCurrency(code, name);
+                System.out.println("Валюта успішно додана!");
+            }
+            case 2 -> {
+                System.out.print("Введіть код валюти з (наприклад, USD): ");
+                String from = scanner.nextLine();
+                System.out.print("Введіть код валюти до (наприклад, EUR): ");
+                String to = scanner.nextLine();
+                System.out.print("Введіть курс: ");
+                double rate = scanner.nextDouble();
+                exchangeRateService.updateExchangeRate(from, to, rate);
+                System.out.println("Курс обміну успішно оновлено!");
+            }
+        }
+    }
+
+    private void convertCurrency() {
+        System.out.print("Введіть валюту з (код, наприклад, USD): ");
+        String from = scanner.nextLine();
+        System.out.print("Введіть валюту до (код, наприклад, EUR): ");
+        String to = scanner.nextLine();
+        System.out.print("Введіть суму: ");
+        double amount = scanner.nextDouble();
+
+        try {
+            double result = exchangeRateService.convertCurrency(from, to, amount);
+            System.out.printf("Результат: %.2f %s\n", result, to);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Помилка: " + e.getMessage());
+        }
+    }
+
+    private void logout() {
+        activeUser = null;
+        System.out.println("Ви вийшли з облікового запису.");
+    }
+
+    private void exitApplication() {
+        System.out.println("До побачення!");
+        System.exit(0);
+    }
+
+    private int getInputInt(int maxOption) {
+        int choice;
+        while (true) {
+            System.out.print("Введіть номер опції (0-" + maxOption + "): ");
+            try {
+                choice = scanner.nextInt();
+                scanner.nextLine();
+                if (choice >= 0 && choice <= maxOption) {
+                    return choice;
+                } else {
+                    System.out.println("Помилка: введіть число в діапазоні!");
+                }
+            } catch (Exception e) {
+                System.out.println("Помилка: введіть ціле число!");
+                scanner.nextLine();
+            }
+        }
+    }
+}
